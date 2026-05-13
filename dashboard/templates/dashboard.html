@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trading Bot Dashboard</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #0d1117; color: #e6edf3; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+header { background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px;
+         display: flex; align-items: center; justify-content: space-between; }
+header h1 { font-size: 1.1rem; display: flex; align-items: center; gap: 8px; }
+.badge { background: #238636; padding: 3px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 600; }
+.badge.paper { background: #9e6a03; }
+nav a { color: #8b949e; text-decoration: none; margin-left: 16px; font-size: 0.9rem; }
+nav a:hover { color: #e6edf3; }
+main { max-width: 1200px; margin: 0 auto; padding: 24px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; }
+.card h3 { color: #8b949e; font-size: 0.8rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.card .value { font-size: 1.6rem; font-weight: 700; }
+.card .value.green { color: #3fb950; }
+.card .value.red { color: #f85149; }
+.section { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+.section h2 { font-size: 1rem; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+th { text-align: left; padding: 8px 12px; color: #8b949e; font-weight: 500; border-bottom: 1px solid #30363d; }
+td { padding: 10px 12px; border-bottom: 1px solid #21262d; }
+tr:last-child td { border-bottom: none; }
+.buy  { color: #3fb950; font-weight: 600; }
+.sell { color: #f85149; font-weight: 600; }
+.close { color: #d29922; font-weight: 600; }
+.btn { padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer; font-size: 0.85rem; font-weight: 600; }
+.btn-red    { background: #da3633; color: white; }
+.btn-yellow { background: #9e6a03; color: white; }
+.btn-green  { background: #238636; color: white; }
+.btn:hover { opacity: 0.85; }
+.actions { display: flex; gap: 10px; margin-bottom: 20px; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: #3fb950; display: inline-block; margin-right: 6px; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.empty { color: #8b949e; text-align: center; padding: 30px; font-size: 0.9rem; }
+.tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.tag-placed  { background: #1f6feb33; color: #58a6ff; }
+.tag-failed  { background: #da363333; color: #f85149; }
+.tag-success { background: #23863633; color: #3fb950; }
+.tag-error   { background: #da363333; color: #f85149; }
+.webhook-url { background: #0d1117; border: 1px solid #30363d; border-radius: 6px;
+               padding: 10px 14px; font-family: monospace; font-size: 0.85rem;
+               color: #58a6ff; word-break: break-all; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📈 Trading Bot <span class="badge paper">PAPER</span></h1>
+  <nav>
+    <span><span class="status-dot"></span>Live</span>
+    <a href="/logout">Logout</a>
+  </nav>
+</header>
+<main>
+
+  <!-- Account cards -->
+  <div class="grid" id="account-grid">
+    <div class="card"><h3>Portfolio Value</h3><div class="value" id="portfolio">—</div></div>
+    <div class="card"><h3>Buying Power</h3><div class="value" id="buying-power">—</div></div>
+    <div class="card"><h3>Today P&L</h3><div class="value" id="pnl">—</div></div>
+    <div class="card"><h3>Open Positions</h3><div class="value" id="positions-count">—</div></div>
+  </div>
+
+  <!-- Action buttons -->
+  <div class="actions">
+    <button class="btn btn-red" onclick="closeAll()">🚨 Close All Positions</button>
+    <button class="btn btn-yellow" onclick="toggleKillSwitch()">🔴 Kill Switch</button>
+    <button class="btn btn-green" onclick="loadAll()">🔄 Refresh</button>
+  </div>
+
+  <!-- Webhook URL -->
+  <div class="section">
+    <h2>🔗 Your TradingView Webhook URL</h2>
+    <div class="webhook-url" id="webhook-url">Loading...</div>
+    <p style="color:#8b949e;font-size:0.85rem;">Paste this in TradingView → Create Alert → Notifications → Webhook URL</p>
+  </div>
+
+  <!-- Open Positions -->
+  <div class="section">
+    <h2>📊 Open Positions</h2>
+    <div id="positions-table"><div class="empty">No open positions</div></div>
+  </div>
+
+  <!-- Trade Log -->
+  <div class="section">
+    <h2>📋 Trade Log</h2>
+    <div id="trades-table"><div class="empty">No trades yet</div></div>
+  </div>
+
+  <!-- Webhook Log -->
+  <div class="section">
+    <h2>📡 Recent Webhooks</h2>
+    <div id="webhooks-table"><div class="empty">No webhooks received yet</div></div>
+  </div>
+
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function fmt(v) {
+  if (v == null) return '—';
+  const n = parseFloat(v);
+  return isNaN(n) ? v : '$' + n.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+}
+
+async function loadAccount() {
+  try {
+    const r = await fetch('/api/account');
+    const d = await r.json();
+    if (d.account) {
+      const a = d.account;
+      $('portfolio').textContent = fmt(a.portfolio_value);
+      $('buying-power').textContent = fmt(a.buying_power);
+      const pnl = parseFloat(a.equity) - parseFloat(a.last_equity);
+      const pnlEl = $('pnl');
+      pnlEl.textContent = fmt(pnl);
+      pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red');
+    }
+    if (d.positions) {
+      $('positions-count').textContent = d.positions.length;
+      if (d.positions.length === 0) {
+        $('positions-table').innerHTML = '<div class="empty">No open positions</div>';
+      } else {
+        let html = '<table><tr><th>Symbol</th><th>Qty</th><th>Avg Price</th><th>Current</th><th>P&L</th><th>%</th></tr>';
+        d.positions.forEach(p => {
+          const pl = parseFloat(p.unrealized_pl);
+          const plc = pl >= 0 ? 'green' : 'red';
+          html += `<tr>
+            <td><strong>${p.symbol}</strong></td>
+            <td>${p.qty}</td>
+            <td>${fmt(p.avg_entry_price)}</td>
+            <td>${fmt(p.current_price)}</td>
+            <td style="color:${pl>=0?'#3fb950':'#f85149'}">${fmt(pl)}</td>
+            <td style="color:${pl>=0?'#3fb950':'#f85149'}">${parseFloat(p.unrealized_plpc*100).toFixed(2)}%</td>
+          </tr>`;
+        });
+        html += '</table>';
+        $('positions-table').innerHTML = html;
+      }
+    }
+  } catch(e) { console.error('Account load error', e); }
+}
+
+async function loadTrades() {
+  try {
+    const r = await fetch('/api/trades');
+    const trades = await r.json();
+    if (!trades.length) { $('trades-table').innerHTML = '<div class="empty">No trades yet</div>'; return; }
+    let html = '<table><tr><th>Time</th><th>Symbol</th><th>Action</th><th>Qty</th><th>Type</th><th>Status</th></tr>';
+    trades.forEach(t => {
+      const ac = t.action === 'buy' ? 'buy' : t.action === 'sell' ? 'sell' : 'close';
+      html += `<tr>
+        <td style="color:#8b949e;font-size:0.8rem">${t.timestamp}</td>
+        <td><strong>${t.symbol}</strong></td>
+        <td class="${ac}">${t.action.toUpperCase()}</td>
+        <td>${t.quantity}</td>
+        <td>${t.order_type}</td>
+        <td><span class="tag tag-${t.status}">${t.status}</span></td>
+      </tr>`;
+    });
+    html += '</table>';
+    $('trades-table').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+async function loadWebhooks() {
+  try {
+    const r = await fetch('/api/webhooks');
+    const wh = await r.json();
+    if (!wh.length) { $('webhooks-table').innerHTML = '<div class="empty">No webhooks received yet</div>'; return; }
+    let html = '<table><tr><th>Time</th><th>Status</th><th>Payload</th><th>Error</th></tr>';
+    wh.forEach(w => {
+      html += `<tr>
+        <td style="color:#8b949e;font-size:0.8rem">${w.timestamp}</td>
+        <td><span class="tag tag-${w.status}">${w.status}</span></td>
+        <td style="font-family:monospace;font-size:0.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis">${w.raw_payload||''}</td>
+        <td style="color:#f85149;font-size:0.8rem">${w.error||''}</td>
+      </tr>`;
+    });
+    html += '</table>';
+    $('webhooks-table').innerHTML = html;
+  } catch(e) { console.error(e); }
+}
+
+async function closeAll() {
+  if (!confirm('Close ALL open positions? This cannot be undone.')) return;
+  await fetch('/api/close_all', {method:'POST'});
+  setTimeout(loadAll, 1000);
+}
+
+async function toggleKillSwitch() {
+  const on = confirm('Enable kill switch? This will stop ALL new trades.');
+  await fetch('/api/kill_switch', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({enabled:on})});
+  alert(on ? '🔴 Kill switch ENABLED — trading halted' : '🟢 Kill switch DISABLED — trading resumed');
+}
+
+function loadAll() {
+  loadAccount();
+  loadTrades();
+  loadWebhooks();
+}
+
+// Set webhook URL dynamically
+$('webhook-url').textContent = window.location.origin + '/webhook';
+
+// Load on start, refresh every 30s
+loadAll();
+setInterval(loadAll, 30000);
+</script>
+</body>
+</html>
