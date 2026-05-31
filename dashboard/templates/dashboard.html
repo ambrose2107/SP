@@ -2485,6 +2485,7 @@ function calcOnOpen() {
   calcAddRow(); calcAddRow(); calcAddRow();
 }
 
+async function calcFetchPrices() {
   const rows = [...$('calc-tbody').querySelectorAll('tr')];
   if(!rows.length) { alert('Add some stock rows first.'); return; }
 
